@@ -1,0 +1,73 @@
+# Build RaphaelaProject and publish it to GitHub Pages.
+#
+# Uses the artifact-based deployment (actions/deploy-pages) rather than pushing
+# a gh-pages branch. Nothing built ever gets committed, which keeps dist/ in
+# .gitignore where it belongs and leaves source as the single truth.
+#
+# ONE-TIME SETUP in the repository:
+#   Settings -> Pages -> Build and deployment -> Source -> "GitHub Actions"
+# Without that, this workflow runs but the deploy step fails with a
+# "Pages site not found" style error.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # Lets you re-deploy from the Actions tab without pushing a commit.
+  workflow_dispatch:
+
+# Least privilege: read the repo, write a Pages deployment, and mint the OIDC
+# token that deploy-pages uses to authenticate.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a run in progress finish rather than cancelling it, so a half-uploaded
+# artifact never becomes the live site.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # The test suite uses node:test, which needs Node 18+. 20 is LTS.
+          node-version: '20'
+          cache: npm
+
+      # `npm ci` requires a committed package-lock.json. Run `npm install`
+      # locally once and commit the lockfile, or this step fails.
+      - name: Install dependencies
+        run: npm ci
+
+      # Deploy only what passes. The parity test matters most here: it catches
+      # the inlined engine in RaphaelaProject.jsx drifting away from
+      # lib/solar.js, which nothing else would notice.
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - name: Upload build output
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

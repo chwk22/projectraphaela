@@ -236,6 +236,59 @@ import for `vitest`.
 
 ---
 
+## Deploying to GitHub Pages
+
+The app is a static bundle with no server, so Pages hosts it as-is.
+
+```bash
+npm install          # once, to generate package-lock.json
+git add -A && git commit -m "Initial commit" && git push -u origin main
+```
+
+Then in the repository: **Settings → Pages → Build and deployment → Source →
+"GitHub Actions"**. That is the step people miss; without it the workflow runs
+and the deploy job fails.
+
+`.github/workflows/deploy.yml` then builds on every push to `main`, runs the
+test suite, and publishes `dist/` as a Pages artifact. Nothing built is ever
+committed. Your site appears at `https://<user>.github.io/<repo>/`.
+
+The workflow uses `npm ci`, which **requires a committed `package-lock.json`**.
+Generate it with a local `npm install` and commit it, or the install step fails.
+
+### Why `base: './'`
+
+A project site is served from a subdirectory, not the domain root. Vite's
+default emits absolute asset paths like `/assets/index-abc.js`, which resolve
+against the domain root and 404 on Pages. Setting `base: './'` in
+`vite.config.js` makes those paths relative to `index.html`, so the same build
+works at a domain root, in a repo subdirectory, and from `file://`.
+
+If you later add a client-side router, swap it for an explicit
+`base: '/RaphaelaProject/'`. Relative paths stop working once the URL can have
+a depth the bundler did not anticipate.
+
+There is no `404.html` fallback because the app has no routes — every URL is
+the one page.
+
+### What improves once it is hosted
+
+Two things behave better on Pages than in a local preview, because Pages serves
+over HTTPS from a real origin:
+
+- `localStorage` works normally, so saved spots persist and the in-memory
+  fallback notice disappears.
+- The async Clipboard API is available, since it needs a secure context. The
+  `execCommand` fallback stays in place for older Safari regardless.
+
+### Custom domain
+
+Add a `CNAME` file to a `public/` directory rather than to `dist/`, which is
+gitignored and rebuilt on every deploy. Vite copies `public/` to the output
+root verbatim.
+
+---
+
 ## Known limitations
 
 These are deliberate, not oversights.
@@ -273,6 +326,7 @@ the geography but not surveyed.
 ## Project layout
 
 ```
+.github/workflows/deploy.yml   builds and publishes to GitHub Pages
 index.html
 vite.config.js
 package.json
