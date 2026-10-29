@@ -8,12 +8,14 @@
  *      date, scoring horizon alignment, twilight duration, air clarity and
  *      vantage height.
  *   2. Reports peak-colour time: the sky usually peaks a fixed interval either
- *      side of the official event (20 minutes before sunrise, and by symmetry
- *      20 minutes after sunset). The interval is adjustable.
+ *      side of the official event (35 minutes before sunrise, and by symmetry
+ *      35 minutes after sunset). The interval is adjustable.
  *   3. Shows the sun moving: a hand-computed terminator is painted over a map
  *      of Australia and can be scrubbed or animated through the day.
  *   4. Copies a plan to the clipboard: place, coordinates, and every relevant
  *      time, as plain text.
+ *   5. Drops the pin at the device's current position ("Use my location"),
+ *      via the browser API on the web and @capacitor/geolocation in the apps.
  *
  * SINGLE-FILE BUILD
  *   This file is self-contained on purpose so it can be dropped into any React
@@ -34,7 +36,8 @@
  * ACCESSIBILITY
  *   The map is operable from the keyboard (arrow keys nudge the pin, Enter
  *   drops it), every control has a label, focus is always visible, and
- *   `prefers-reduced-motion` suppresses the animation loop.
+ *   `prefers-reduced-motion` replaces the continuous animation with one-hour
+ *   steps, one per second.
  */
 
 import React, {
@@ -54,6 +57,7 @@ import {
   Copy,
   Crosshair,
   Info,
+  LocateFixed,
   MapPin,
   Pause,
   Play,
@@ -63,6 +67,8 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
 
 /* ==========================================================================
  * SECTION 1 — Solar engine (mirror of src/lib/solar.js)
@@ -82,7 +88,7 @@ const ZENITH = {
   GOLDEN_UPPER: 84, // sun 6 degrees up: the top of the golden window
 };
 
-const DEFAULT_PEAK_OFFSET_MIN = 20;
+const DEFAULT_PEAK_OFFSET_MIN = 35;
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 const norm360 = (deg) => ((deg % 360) + 360) % 360;
@@ -725,6 +731,70 @@ const toPath = (ring) =>
 const LAND_PATHS = LANDMASSES.map(toPath);
 
 /* ==========================================================================
+ * SECTION 3b — Geolocation helpers (mirror of src/lib/geolocate.js)
+ * ========================================================================== */
+
+/** Error codes. 1 to 3 match the W3C GeolocationPositionError codes. */
+const GEO_ERROR = {
+  UNSUPPORTED: 0,
+  PERMISSION_DENIED: 1,
+  POSITION_UNAVAILABLE: 2,
+  TIMEOUT: 3,
+};
+
+/**
+ * Normalise anything thrown while locating into one of the GEO_ERROR codes.
+ * Browsers reject with a numeric `code`; the Capacitor plugin rejects with a
+ * plain Error, so fall back to reading its text.
+ */
+function geoErrorCode(err) {
+  if (err && (err.code === 1 || err.code === 2 || err.code === 3)) return err.code;
+  const text = err ? `${err.code || ''} ${err.message || ''}`.toLowerCase() : '';
+  if (/denied|permission|not authori[sz]ed|restricted/.test(text)) return GEO_ERROR.PERMISSION_DENIED;
+  if (/time ?out|timed out/.test(text)) return GEO_ERROR.TIMEOUT;
+  if (/not (implemented|available|supported)|unsupported|unimplemented/.test(text)) return GEO_ERROR.UNSUPPORTED;
+  return GEO_ERROR.POSITION_UNAVAILABLE;
+}
+
+/** The sentence shown to the user for each error code. */
+function geoErrorMessage(code) {
+  switch (code) {
+    case GEO_ERROR.PERMISSION_DENIED:
+      return 'Location access is turned off for Moonsun. Allow it in your browser or device settings, then try again.';
+    case GEO_ERROR.TIMEOUT:
+      return 'Finding your position took too long. Try again, ideally outdoors.';
+    case GEO_ERROR.UNSUPPORTED:
+      return 'This device or browser cannot share its location. Drop the pin by hand or type a coordinate instead.';
+    default:
+      return 'Your position could not be found. Check that location services are on, then try again.';
+  }
+}
+
+/**
+ * Turn a raw fix ({ latitude, longitude }) into a pin, or explain why not.
+ * Returns { ok: true, lat, lon } or { ok: false, message }.
+ */
+function checkFix(coords) {
+  // Number.isFinite rather than Number(): Number(null) is 0, which would turn
+  // a missing fix into a pin at 0, 0.
+  const lat = coords ? coords.latitude : undefined;
+  const lon = coords ? coords.longitude : undefined;
+  if (
+    !Number.isFinite(lat) || !Number.isFinite(lon) ||
+    Math.abs(lat) > 90 || Math.abs(lon) > 180
+  ) {
+    return { ok: false, message: 'Your device returned an unreadable position. Try again in a moment.' };
+  }
+  if (!isInFrame(lat, lon)) {
+    return {
+      ok: false,
+      message: `You appear to be at ${lat.toFixed(2)}, ${lon.toFixed(2)}, outside the map of Australia, so the pin has not moved.`,
+    };
+  }
+  return { ok: true, lat, lon };
+}
+
+/* ==========================================================================
  * SECTION 4 — Storage
  * ========================================================================== */
 
@@ -1112,10 +1182,11 @@ const STYLES = `
 
 .rp-foot { margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--hair); font-size: 12px; color: var(--faint); max-width: 78ch; }
 .rp-foot p { margin: 0 0 7px; }
+.rp-foot .rp-tagline { margin-top: 14px; font-family: var(--display); font-size: 15px; font-style: italic; color: var(--paper); }
 
 /* ---- Toast ---- */
 .rp-toast {
-  position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); transform: translateX(-50%);
   z-index: 40; max-width: min(92vw, 460px);
   display: flex; gap: 10px; align-items: flex-start;
   background: var(--ink-2); color: var(--paper);
@@ -1736,6 +1807,15 @@ function RaphaelaProjectInner() {
   const [latInput, setLatInput] = useState('');
   const [lonInput, setLonInput] = useState('');
   const [coordError, setCoordError] = useState(null);
+  const [locating, setLocating] = useState(false);
+
+  // Lets a slow GPS answer be ignored if the app has gone away meanwhile.
+  const mounted = useRef(true);
+  // Set it back to true on mount too: StrictMode mounts, unmounts and remounts.
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   // Write preferences back on change. Each is independent so a quota failure
   // on one does not lose the others.
@@ -1766,7 +1846,7 @@ function RaphaelaProjectInner() {
     const preset = HORIZON_PRESETS[pinHorizon] || HORIZON_PRESETS.open;
     return {
       id: 'custom',
-      name: 'Dropped pin',
+      name: selection.source === 'gps' ? 'Your location' : 'Dropped pin',
       region: isOnLand(lat, lon) ? 'Australia' : 'Offshore',
       lat, lon,
       elevationM: Number.isFinite(pinElevation) ? pinElevation : 0,
@@ -1868,24 +1948,34 @@ function RaphaelaProjectInner() {
   }, []);
 
   /**
-   * Step the map clock while playing. Driven by requestAnimationFrame rather
-   * than setInterval so it pauses with the tab and stays smooth. Three minutes
-   * of sky per frame runs a whole day in about eight seconds.
+   * Step the map clock while playing. Normally driven by requestAnimationFrame
+   * so it pauses with the tab and stays smooth: three minutes of sky per frame
+   * runs a whole day in about eight seconds. With reduced motion it steps an
+   * hour per second on a timer instead.
    */
   useEffect(() => {
     if (!playing) return undefined;
+    const advance = (minutes) => setMapTime((prev) => {
+      const next = prev.getTime() + minutes * 60000;
+      const end = dayStart.getTime() + MS_PER_DAY;
+      return new Date(next >= end ? dayStart.getTime() : next);
+    });
+
+    // Reduced motion: no continuous sweep. Step an hour a second instead, so
+    // the day can still be played through without anything sliding about.
+    if (prefersReducedMotion) {
+      const id = window.setInterval(() => advance(60), 1000);
+      return () => window.clearInterval(id);
+    }
+
     let frame;
     const tick = () => {
-      setMapTime((prev) => {
-        const next = prev.getTime() + 3 * 60000;
-        const end = dayStart.getTime() + MS_PER_DAY;
-        return new Date(next >= end ? dayStart.getTime() : next);
-      });
+      advance(3);
       frame = window.requestAnimationFrame(tick);
     };
     frame = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frame);
-  }, [playing, dayStart]);
+  }, [playing, dayStart, prefersReducedMotion]);
 
   // Keep the map clock inside the selected day when the date or place changes.
   useEffect(() => {
@@ -1956,6 +2046,49 @@ function RaphaelaProjectInner() {
     setSelection({ kind: 'pin', lat, lon });
   }, [latInput, lonInput]);
 
+  /**
+   * Ask the device where it is and drop the pin there. The native apps go
+   * through the Capacitor plugin (one system permission prompt); the web build
+   * uses the browser API directly.
+   */
+  const locateMe = useCallback(async () => {
+    const options = { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 };
+    setLocating(true);
+    setCoordError(null);
+    try {
+      let position;
+      if (Capacitor.isNativePlatform()) {
+        position = await Geolocation.getCurrentPosition(options);
+      } else if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        position = await new Promise((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, options)
+        );
+      } else {
+        throw { code: GEO_ERROR.UNSUPPORTED };
+      }
+      if (!mounted.current) return;
+
+      const fix = checkFix(position && position.coords);
+      if (!fix.ok) {
+        setCoordError(fix.message);
+        return;
+      }
+      setSelection({
+        kind: 'pin',
+        source: 'gps',
+        lat: Number(fix.lat.toFixed(4)),
+        lon: Number(fix.lon.toFixed(4)),
+      });
+      setLatInput('');
+      setLonInput('');
+      setToast({ kind: 'good', message: 'Pin moved to your location.' });
+    } catch (err) {
+      if (mounted.current) setCoordError(geoErrorMessage(geoErrorCode(err)));
+    } finally {
+      if (mounted.current) setLocating(false);
+    }
+  }, []);
+
   const handleCopy = useCallback(async () => {
     if (!times || !eventTime) {
       setToast({ kind: 'bad', message: 'There is no sunrise or sunset here on this date, so there is nothing to copy.' });
@@ -2021,7 +2154,7 @@ function RaphaelaProjectInner() {
 
       <header className="rp-head">
         <div>
-          <h1 className="rp-title">RaphaelaProject</h1>
+          <h1 className="rp-title">Moonsun</h1>
           <p className="rp-sub">
             Sunrise and sunset timing for anywhere in Australia, worked out on your device.
             Nothing is sent anywhere.
@@ -2444,6 +2577,16 @@ function RaphaelaProjectInner() {
             >
               <MapPin size={15} /> Move the pin here
             </button>
+
+            <button
+              className="rp-btn"
+              style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
+              onClick={locateMe}
+              disabled={locating}
+              aria-busy={locating}
+            >
+              <LocateFixed size={15} /> {locating ? 'Locating…' : 'Use my location'}
+            </button>
           </div>
 
           {/* ---- Peak offset ---- */}
@@ -2523,6 +2666,7 @@ function RaphaelaProjectInner() {
           Cloud decides whether a sunset is spectacular, and this tool has no way to see it.
           Treat the score as a guide to the place, then check a forecast before you drive.
         </p>
+        <p className="rp-tagline">Follow the moon</p>
       </footer>
 
       {toast && (

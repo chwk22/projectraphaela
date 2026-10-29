@@ -268,9 +268,10 @@ describe('dayTimes', () => {
 
   it('honours a custom offset', () => {
     const t = dayTimes({ year: 2026, month: 9, day: 1 }, -28.644, 153.638, {
-      peakOffsetMinutes: 35,
+      // Anything but the default, so this proves the option is read.
+      peakOffsetMinutes: 50,
     });
-    near((t.sunrise - t.peakColourSunrise) / 60000, 35, 0.001, 'custom offset');
+    near((t.sunrise - t.peakColourSunrise) / 60000, 50, 0.001, 'custom offset');
   });
 
   it('reports day length that matches sunrise-to-sunset', () => {

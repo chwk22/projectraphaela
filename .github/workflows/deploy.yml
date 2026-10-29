@@ -1,4 +1,4 @@
-# Build RaphaelaProject and publish it to GitHub Pages.
+# Build Moonsun and publish it to GitHub Pages.
 #
 # Uses the artifact-based deployment (actions/deploy-pages) rather than pushing
 # a gh-pages branch. Nothing built ever gets committed, which keeps dist/ in
@@ -37,8 +37,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # The test suite uses node:test, which needs Node 18+. 20 is LTS.
-          node-version: '20'
+          # Vite 8 needs Node 20.19+ or 22.12+. 22 is LTS.
+          node-version: '22'
           cache: npm
 
       # `npm ci` requires a committed package-lock.json. Run `npm install`

@@ -1,0 +1,13 @@
+{
+  "appId": "com.chownmkz.moonsun",
+  "appName": "Moonsun",
+  "webDir": "dist",
+  "backgroundColor": "#0D1124",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0D1124"
+  },
+  "android": {
+    "backgroundColor": "#0D1124"
+  }
+}

@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 import * as lib from './solar.js';
+import * as geo from './geolocate.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const COMPONENT = resolve(HERE, '../RaphaelaProject.jsx');
@@ -57,6 +58,7 @@ before(async () => {
     'twilightColour', 'estimateClarity', 'haversineKm', 'buildClipboardText',
     'localMidnight', 'zoneOffsetMinutes', 'formatInZone', 'civilDateInZone',
     'isOnLand', 'SPOTS', 'ZENITH', 'CITIES',
+    'GEO_ERROR', 'geoErrorCode', 'geoErrorMessage', 'checkFix',
   ];
 
   const module = `${body}\nexport { ${exports.join(', ')} };`;
@@ -183,6 +185,33 @@ describe('the inlined engine matches src/lib/solar.js', () => {
       ).sort(),
       'spot ids must be unique'
     );
+  });
+
+  it('agrees on the geolocation helpers', () => {
+    assert.deepEqual(inlined.GEO_ERROR, geo.GEO_ERROR, 'error codes');
+
+    const errors = [
+      { code: 1 }, { code: 2 }, { code: 3 }, null, undefined,
+      new Error('Location permission was denied'), new Error('Timeout expired'),
+      new Error('Not implemented on web.'), new Error('something else'),
+    ];
+    for (const err of errors) {
+      assert.equal(inlined.geoErrorCode(err), geo.geoErrorCode(err), `code for ${err && err.message}`);
+    }
+    for (const code of [0, 1, 2, 3, 42]) {
+      assert.equal(inlined.geoErrorMessage(code), geo.geoErrorMessage(code), `message for ${code}`);
+    }
+
+    const fixes = [
+      ...PLACES.map(([, latitude, longitude]) => ({ latitude, longitude })),
+      { latitude: 48.8566, longitude: 2.3522 },
+      { latitude: NaN, longitude: 151 },
+      { latitude: -95, longitude: 151 },
+      null,
+    ];
+    for (const fix of fixes) {
+      assert.deepEqual(inlined.checkFix(fix), geo.checkFix(fix), `fix ${JSON.stringify(fix)}`);
+    }
   });
 
   it('agrees on local midnight anchoring', () => {

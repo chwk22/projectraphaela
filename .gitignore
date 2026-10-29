@@ -1,0 +1,9 @@
+# Dependencies (installed by `npm ci`, never committed)
+node_modules/
+
+# Build output (built and deployed by the GitHub Pages workflow)
+dist/
+.vite/
+
+# macOS
+.DS_Store

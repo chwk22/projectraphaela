@@ -5,9 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="dark" />
     <meta name="description" content="Offline sunrise and sunset planning for Australia." />
-    <title>RaphaelaProject</title>
+    <title>Moonsun</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Moonsun" />
+    <meta name="theme-color" content="#0D1124" />
     <style>
       html, body, #root { height: 100%; margin: 0; background: #0D1124; }
+      /* Keep content clear of the notch and home indicator on phones
+         (viewport-fit=cover lets the page draw under them). */
+      #root {
+        box-sizing: border-box;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right)
+                 env(safe-area-inset-bottom) env(safe-area-inset-left);
+      }
     </style>
   </head>
   <body>

@@ -10,15 +10,23 @@
     "preview": "vite preview",
     "test": "node --test \"src/**/*.test.js\"",
     "test:watch": "node --test --watch \"src/**/*.test.js\"",
-    "typecheck": "tsc --noEmit --allowJs --checkJs src/lib/solar.js"
+    "typecheck": "tsc --noEmit --allowJs --checkJs src/lib/solar.js",
+    "cap:sync": "vite build && cap sync",
+    "ios": "vite build && cap sync ios && cap open ios",
+    "android": "vite build && cap sync android && cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/geolocation": "^8.2.4",
+    "@capacitor/ios": "^8.6.0",
     "lucide-react": "^0.383.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.1",
+    "@capacitor/cli": "^8.6.0",
+    "@vitejs/plugin-react": "^6.1.2",
     "typescript": "^5.5.0",
     "vite": "^8.3.0"
   },

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Moonsun</string>
+    <string name="title_activity_main">Moonsun</string>
+    <string name="package_name">com.chownmkz.moonsun</string>
+    <string name="custom_url_scheme">com.chownmkz.moonsun</string>
+</resources>

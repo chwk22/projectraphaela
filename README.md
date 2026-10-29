@@ -16,7 +16,7 @@ year, and a west-facing beach that works in June may be pointing at nothing in
 December.
 
 **Tells you when the colour peaks.** The sky is usually at its most saturated a
-fixed interval either side of the official event — 20 minutes before sunrise,
+fixed interval either side of the official event — 35 minutes before sunrise,
 and the same interval after sunset. That offset is the headline number in the
 interface and is adjustable, because the real figure runs shorter in the
 tropics and longer in Tasmania.
@@ -28,6 +28,12 @@ sunset is happening at that instant.
 
 **Copies a plan.** One button puts the place, coordinates, and every relevant
 time on the clipboard as plain text.
+
+**Starts from where you are.** "Use my location" asks the device for its
+position and drops the pin there. The position stays on the device. Positions
+outside the map of Australia are refused with a message, and the pin stays
+where it was. The web build uses the browser's geolocation API (HTTPS or
+localhost only); the iOS and Android apps use `@capacitor/geolocation`.
 
 ---
 

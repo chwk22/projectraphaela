@@ -54,11 +54,11 @@ export const ZENITH = {
 
 /**
  * Default number of minutes between the official sunrise/sunset time and the
- * moment the sky colour usually peaks. The brief specifies 20 minutes before
- * sunrise; the symmetric case is 20 minutes after sunset. Users can change
- * this in the app because the real figure drifts with latitude and season.
+ * moment the sky colour usually peaks: 35 minutes before sunrise, and by
+ * symmetry 35 minutes after sunset. Users can change this in the app because
+ * the real figure drifts with latitude and season.
  */
-export const DEFAULT_PEAK_OFFSET_MIN = 20;
+export const DEFAULT_PEAK_OFFSET_MIN = 35;
 
 // ---------------------------------------------------------------------------
 // Small numeric helpers
